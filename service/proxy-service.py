@@ -117,8 +117,8 @@ def sesamify(entity, service_args):
     if service_args.get("_updated_src"):
         entity['_updated'] = remove_tz_offset(
             str(entity.get(service_args.get("_updated_src"))))
-    else:
-        if service_args.get("latest_date_modified", "") > entity.get("date_modified"):
+    elif entity.get("date_modified"):
+        if service_args.get("latest_date_modified", "") > entity.get("date_modified", ""):
             entity['_updated'] = remove_tz_offset(
                 str(service_args.get("latest_date_modified")))
         else:
