@@ -46,7 +46,8 @@ API_ENDPOINTS_TO_READ_FROM_DATA_FIELD = [
     'collectors/{id}/recipients', 'collectors/{id}/recipients',
     'collectors/{id}/responses', 'collectors/{id}/responses/bulk', 'webhooks',
     'benchmark_bundles', 'workgroups', 'workgroups/{id}/members',
-    'workgroups/{id}/shares', 'roles', 'errors'
+    'workgroups/{id}/shares', 'roles', 'errors', 'contacts', 'contacts/bulk',
+    '/contact_lists/{id}/contacts/bulk', 'contact_fields'
 ]
 SERVICE_PARAMETERS = [
     "_id_src", "_updated_src",
