@@ -18,7 +18,7 @@ Sesam connector for surveymonkey API
 
 | NAME       | Description       | Is Mandatory   | Default value   |
 |:-----------|:-----------------|---------------:|----------------:|
-| SURVEYMONKEY_ACCESS_TOKEN | loglevel for the service |Y| N/A|
+| SURVEYMONKEY_ACCESS_TOKEN_LIST / SURVEYMONKEY_ACCESS_TOKEN | list of access tokens one for each account / a string of single account token, respectively. |Y| N/A|
 | SURVEYMONKEY_URL | surveymonkey base url up to API call path |Y| N/A|
 | LOGLEVEL | loglevel for the service |N| Info|
 | PER_PAGE | page size for the paged API calls |N| 1000|
@@ -53,7 +53,7 @@ Additionaly, following parameters are defined by this microservice:
     "docker": {
         "environment": {
             "LOGLEVEL": "DEBUG",
-            "SURVEYMONKEY_ACCESS_TOKEN": "$SECRET(surveymonkey_access_token)",
+            "SURVEYMONKEY_ACCESS_TOKEN_LIST": ["$SECRET(surveymonkey_access_token1)", "$SECRET(surveymonkey_access_token2)"],
             "SURVEYMONKEY_URL": "$ENV(surveymonkey_baseurl)"
         },
         "image": "sesamcommunity/surveymonkey:v1.0",
