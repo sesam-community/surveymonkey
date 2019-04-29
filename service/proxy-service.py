@@ -14,7 +14,9 @@ app = Flask(__name__)
 logger = l.Logger('surveymonkey', os.environ.get('LOGLEVEL', 'INFO'))
 
 BASE_URL = os.environ.get('SURVEYMONKEY_URL')
-ACCESS_TOKEN = os.environ.get('SURVEYMONKEY_ACCESS_TOKEN')
+ACCESS_TOKEN_LIST = json.loads(os.environ.get('SURVEYMONKEY_ACCESS_TOKEN_LIST', '{}'))
+if not ACCESS_TOKEN_LIST:
+    ACCESS_TOKEN_LIST = [os.environ.get('SURVEYMONKEY_ACCESS_TOKEN')]
 PER_PAGE = int(os.environ.get('PER_PAGE', '1000'))
 RATE_LIMIT_THRESHOLDS = [{
     'policy_name': 'REQUEST_REJECTION',
@@ -32,8 +34,8 @@ SURVEY_BLACKLIST = SURVEY_BLACKLIST.replace(
 
 
 logger.info(
-    'started up with LOG_LEVEL=%s, BASE_URL=%s, PER_PAGE=%d, RATE_LIMIT_THRESHOLDS=%s, SURVEY_BLACKLIST=%s' %
-    (l.getLevel(logger), BASE_URL, PER_PAGE, RATE_LIMIT_THRESHOLDS, SURVEY_BLACKLIST))
+    'started up with LOG_LEVEL=%s, BASE_URL=%s, PER_PAGE=%d, RATE_LIMIT_THRESHOLDS=%s, SURVEY_BLACKLIST=%s, NUMBER_OF_SM_ACCOUNTS=%d' %
+    (l.getLevel(logger), BASE_URL, PER_PAGE, RATE_LIMIT_THRESHOLDS, SURVEY_BLACKLIST, len(ACCESS_TOKEN_LIST)))
 
 API_ENDPOINTS_TO_READ_FROM_DATA_FIELD = [
     'minimalreportingdata',
@@ -160,35 +162,40 @@ def fetch_data(session, path, service_args, api_args):
     url = None
     try:
         yield '['
-        if path == 'minimalreportingdata':
-            surveys = generate_entities(
-                session, BASE_URL + 'surveys', service_args, api_args={})
-            for survey in surveys:
-                if survey.get('id') in SURVEY_BLACKLIST:
-                    continue
-                for extension in [{'path': '/details',
-                                   'api_args': {'include': 'date_modified'}},
-                                  {'path': '/collectors',
-                                   'api_args': {'include': 'status,date_modified'}},
-                                  {'path': '/responses/bulk', 'api_args': api_args}]:
-                    extension_entities = generate_entities(
-                        session, survey['href'] + extension['path'], service_args, extension['api_args'])
-                    for entity in extension_entities:
-                        if is_first_yield:
-                            is_first_yield = False
-                        else:
-                            yield ','
-                        yield json.dumps(sesamify(entity, service_args))
+        for access_token in ACCESS_TOKEN_LIST:
+            session.headers.update({
+            'Authorization': 'Bearer %s' % access_token,
+            'Content-Type': 'application/json'
+            })
+            if path == 'minimalreportingdata':
+                surveys = generate_entities(
+                    session, BASE_URL + 'surveys', service_args, api_args={})
+                for survey in surveys:
+                    if survey.get('id') in SURVEY_BLACKLIST:
+                        continue
+                    for extension in [{'path': '/details',
+                                       'api_args': {'include': 'date_modified'}},
+                                      {'path': '/collectors',
+                                       'api_args': {'include': 'status,date_modified'}},
+                                      {'path': '/responses/bulk', 'api_args': api_args}]:
+                        extension_entities = generate_entities(
+                            session, survey['href'] + extension['path'], service_args, extension['api_args'])
+                        for entity in extension_entities:
+                            if is_first_yield:
+                                is_first_yield = False
+                            else:
+                                yield ','
+                            yield json.dumps(sesamify(entity, service_args))
 
-        else:
-            entity_list = generate_entities(
-                session, BASE_URL + path, service_args, api_args)
-            for entity in entity_list:
-                if is_first_yield:
-                    is_first_yield = False
-                else:
-                    yield ','
-                yield json.dumps(sesamify(entity, service_args))
+            else:
+                entity_list = generate_entities(
+                    session, BASE_URL + path, service_args, api_args)
+                for entity in entity_list:
+                    if is_first_yield:
+                        is_first_yield = False
+                    else:
+                        yield ','
+                    yield json.dumps(sesamify(entity, service_args))
     except StopIteration:
         None
     except Exception as err:
@@ -202,10 +209,6 @@ def fetch_data(session, path, service_args, api_args):
 
 def get_session():
     session = requests.Session()
-    session.headers.update({
-        'Authorization': 'Bearer %s' % ACCESS_TOKEN,
-        'Content-Type': 'application/json'
-    })
     return session
 
 
@@ -275,18 +278,20 @@ def transform(path):
 
 
 if __name__ == '__main__':
-    cherrypy.tree.graft(app, '/')
+    if os.environ.get('WEBFRAMEWORK','').lower() == 'flask':
+        app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    else:
+        cherrypy.tree.graft(app, '/')
 
-    # Set the configuration of the web server to production mode
-    cherrypy.config.update({
-        'environment': 'production',
-        'engine.autoreload_on': False,
-        'log.screen': True,
-        'server.socket_port': int(os.environ.get('PORT', 5000)),
-        'server.socket_host': '0.0.0.0'
-    })
+        # Set the configuration of the web server to production mode
+        cherrypy.config.update({
+            'environment': 'production',
+            'engine.autoreload_on': False,
+            'log.screen': True,
+            'server.socket_port': int(os.environ.get('PORT', 5000)),
+            'server.socket_host': '0.0.0.0'
+        })
 
-    # Start the CherryPy WSGI web server
-    cherrypy.engine.start()
-    cherrypy.engine.block()
-    #app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+        # Start the CherryPy WSGI web server
+        cherrypy.engine.start()
+        cherrypy.engine.block()
