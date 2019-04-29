@@ -2,6 +2,7 @@
 from flask import Flask, request, Response, abort, redirect
 import requests
 import os
+import sys
 import json
 import re
 import logger as l
@@ -16,9 +17,13 @@ logger = l.Logger('surveymonkey', os.environ.get('LOGLEVEL', 'INFO'))
 BASE_URL = os.environ.get('SURVEYMONKEY_URL')
 ACCESS_TOKEN_DICT = json.loads(os.environ.get(
     'SURVEYMONKEY_ACCESS_TOKEN_DICT', '{}'))
-if not ACCESS_TOKEN_DICT:
+if not ACCESS_TOKEN_DICT and os.environ.get(
+        'SURVEYMONKEY_ACCESS_TOKEN'):
     ACCESS_TOKEN_DICT = {'unspecified_account_name': os.environ.get(
         'SURVEYMONKEY_ACCESS_TOKEN')}
+if not ACCESS_TOKEN_DICT or not BASE_URL:
+    sys.exit('not all mandatory variables are set (SURVEYMONKEY_URL,SURVEYMONKEY_ACCESS_TOKEN_DICT/SURVEYMONKEY_ACCESS_TOKEN)')
+    
 PER_PAGE = int(os.environ.get('PER_PAGE', '1000'))
 RATE_LIMIT_THRESHOLDS = [{
     'policy_name': 'REQUEST_REJECTION',
