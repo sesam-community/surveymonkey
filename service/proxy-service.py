@@ -2,6 +2,7 @@
 from flask import Flask, request, Response, abort, redirect
 import requests
 import os
+import sys
 import json
 import re
 import logger as l
@@ -14,9 +15,15 @@ app = Flask(__name__)
 logger = l.Logger('surveymonkey', os.environ.get('LOGLEVEL', 'INFO'))
 
 BASE_URL = os.environ.get('SURVEYMONKEY_URL')
-ACCESS_TOKEN_LIST = json.loads(os.environ.get('SURVEYMONKEY_ACCESS_TOKEN_LIST', '{}'))
-if not ACCESS_TOKEN_LIST:
-    ACCESS_TOKEN_LIST = [os.environ.get('SURVEYMONKEY_ACCESS_TOKEN')]
+ACCESS_TOKEN_DICT = json.loads(os.environ.get(
+    'SURVEYMONKEY_ACCESS_TOKEN_DICT', '{}'))
+if not ACCESS_TOKEN_DICT and os.environ.get(
+        'SURVEYMONKEY_ACCESS_TOKEN'):
+    ACCESS_TOKEN_DICT = {'unspecified_account_name': os.environ.get(
+        'SURVEYMONKEY_ACCESS_TOKEN')}
+if not ACCESS_TOKEN_DICT or not BASE_URL:
+    sys.exit('not all mandatory variables are set (SURVEYMONKEY_URL,SURVEYMONKEY_ACCESS_TOKEN_DICT/SURVEYMONKEY_ACCESS_TOKEN)')
+    
 PER_PAGE = int(os.environ.get('PER_PAGE', '1000'))
 RATE_LIMIT_THRESHOLDS = [{
     'policy_name': 'REQUEST_REJECTION',
@@ -34,8 +41,8 @@ SURVEY_BLACKLIST = SURVEY_BLACKLIST.replace(
 
 
 logger.info(
-    'started up with LOG_LEVEL=%s, BASE_URL=%s, PER_PAGE=%d, RATE_LIMIT_THRESHOLDS=%s, SURVEY_BLACKLIST=%s, NUMBER_OF_SM_ACCOUNTS=%d' %
-    (l.getLevel(logger), BASE_URL, PER_PAGE, RATE_LIMIT_THRESHOLDS, SURVEY_BLACKLIST, len(ACCESS_TOKEN_LIST)))
+    'started up with LOG_LEVEL=%s, BASE_URL=%s, PER_PAGE=%d, RATE_LIMIT_THRESHOLDS=%s, SURVEY_BLACKLIST=%s, ACCOUNTS=%s' %
+    (l.getLevel(logger), BASE_URL, PER_PAGE, RATE_LIMIT_THRESHOLDS, SURVEY_BLACKLIST, str(ACCESS_TOKEN_DICT.keys())))
 
 API_ENDPOINTS_TO_READ_FROM_DATA_FIELD = [
     'minimalreportingdata',
@@ -162,10 +169,10 @@ def fetch_data(session, path, service_args, api_args):
     url = None
     try:
         yield '['
-        for access_token in ACCESS_TOKEN_LIST:
+        for access_token in ACCESS_TOKEN_DICT.values():
             session.headers.update({
-            'Authorization': 'Bearer %s' % access_token,
-            'Content-Type': 'application/json'
+                'Authorization': 'Bearer %s' % access_token,
+                'Content-Type': 'application/json'
             })
             if path == 'minimalreportingdata':
                 surveys = generate_entities(
@@ -278,8 +285,9 @@ def transform(path):
 
 
 if __name__ == '__main__':
-    if os.environ.get('WEBFRAMEWORK','').lower() == 'flask':
-        app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    if os.environ.get('WEBFRAMEWORK', '').lower() == 'flask':
+        app.run(debug=True, host='0.0.0.0', port=int(
+            os.environ.get('PORT', 5000)))
     else:
         cherrypy.tree.graft(app, '/')
 
