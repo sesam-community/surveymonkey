@@ -10,6 +10,7 @@ Sesam connector for surveymonkey API
 * **Sesamification of entities** : able to add _id or _updated ot entities
 * **Fetching via http transform** : implements http transform to traverse within entity hierarchy. Any field in the input to the transform can be refered to by {{_filed_name_}} in the url. See example below.
 * **Streaming option** : optional streams the fetched content. Notice that streaming will prevent pipe runs to swallow errors as it always returns HTTP-200 in the response header but will eliminate memory problems and enable continuity in fetches.
+* **Multiple account handling** : several surveymonkey user accounts can be handled by utilizing SURVEYMONKEY_ACCESS_TOKEN_DICT env var
 
 * **minimalreportingdata** : a special url path _minimalreportingdata_ will return the minimal reporting data in one request. In the response there will be survey details, collectors, and response data. It supports
 
@@ -18,7 +19,7 @@ Sesam connector for surveymonkey API
 
 | NAME       | Description       | Is Mandatory   | Default value   |
 |:-----------|:-----------------|---------------:|----------------:|
-| SURVEYMONKEY_ACCESS_TOKEN_LIST / SURVEYMONKEY_ACCESS_TOKEN | list of access tokens one for each account / a string of single account token, respectively. |Y| N/A|
+| SURVEYMONKEY_ACCESS_TOKEN_DICT / SURVEYMONKEY_ACCESS_TOKEN | dict of access tokens in '<any_key_preferably_account_name>':'<access_token>' format / a string of single account token, respectively. |Y| N/A|
 | SURVEYMONKEY_URL | surveymonkey base url up to API call path |Y| N/A|
 | LOGLEVEL | loglevel for the service |N| Info|
 | PER_PAGE | page size for the paged API calls |N| 1000|
@@ -53,7 +54,7 @@ Additionaly, following parameters are defined by this microservice:
     "docker": {
         "environment": {
             "LOGLEVEL": "DEBUG",
-            "SURVEYMONKEY_ACCESS_TOKEN_LIST": ["$SECRET(surveymonkey_access_token1)", "$SECRET(surveymonkey_access_token2)"],
+            "SURVEYMONKEY_ACCESS_TOKEN_DICT": "$SECRET(surveymonkey_access_token_dict)",
             "SURVEYMONKEY_URL": "$ENV(surveymonkey_baseurl)"
         },
         "image": "sesamcommunity/surveymonkey:v1.0",
