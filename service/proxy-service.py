@@ -23,7 +23,7 @@ if not ACCESS_TOKEN_DICT and os.environ.get(
         'SURVEYMONKEY_ACCESS_TOKEN')}
 if not ACCESS_TOKEN_DICT or not BASE_URL:
     sys.exit('not all mandatory variables are set (SURVEYMONKEY_URL,SURVEYMONKEY_ACCESS_TOKEN_DICT/SURVEYMONKEY_ACCESS_TOKEN)')
-    
+
 PER_PAGE = int(os.environ.get('PER_PAGE', '1000'))
 RATE_LIMIT_THRESHOLDS = [{
     'policy_name': 'REQUEST_REJECTION',
@@ -35,14 +35,11 @@ RATE_LIMIT_THRESHOLDS = [{
     'Day': float(os.environ.get('THRESHOLD_FOR_DELAYED_RESPONSE_DAY', '0.3'))
 }]
 
-SURVEY_BLACKLIST = os.environ.get('SURVEY_BLACKLIST')
-SURVEY_BLACKLIST = SURVEY_BLACKLIST.replace(
-    ' ', '').split(',') if SURVEY_BLACKLIST else []
-
+BLACKLIST_PATTERN_SPEC = json.loads(os.environ.get('BLACKLIST_PATTERN_SPEC','{}'))
 
 logger.info(
-    'started up with LOG_LEVEL=%s, BASE_URL=%s, PER_PAGE=%d, RATE_LIMIT_THRESHOLDS=%s, SURVEY_BLACKLIST=%s, ACCOUNTS=%s' %
-    (l.getLevel(logger), BASE_URL, PER_PAGE, RATE_LIMIT_THRESHOLDS, SURVEY_BLACKLIST, str(ACCESS_TOKEN_DICT.keys())))
+    'started up with LOG_LEVEL=%s, BASE_URL=%s, PER_PAGE=%d, RATE_LIMIT_THRESHOLDS=%s, BLACKLIST_PATTERN_SPEC=%s, ACCOUNTS=%s' %
+    (l.getLevel(logger), BASE_URL, PER_PAGE, RATE_LIMIT_THRESHOLDS, BLACKLIST_PATTERN_SPEC, str(ACCESS_TOKEN_DICT.keys())))
 
 API_ENDPOINTS_TO_READ_FROM_DATA_FIELD = [
     'minimalreportingdata',
@@ -162,6 +159,11 @@ def generate_entities(session, url, service_args, api_args):
         if do_page:
             api_args['page'] = api_response_json.get('page') + 1
 
+def is_blacklisted(dict):
+    is_blacklisted = False
+    for field, pattern in BLACKLIST_PATTERN_SPEC.items():
+        is_blacklisted = re.search(pattern, dict.get(field, ''))
+    return is_blacklisted
 
 def fetch_data(session, path, service_args, api_args):
     global g_reject_requests_policy_expires_at
@@ -178,7 +180,8 @@ def fetch_data(session, path, service_args, api_args):
                 surveys = generate_entities(
                     session, BASE_URL + 'surveys', service_args, api_args={})
                 for survey in surveys:
-                    if survey.get('id') in SURVEY_BLACKLIST:
+                    if is_blacklisted(survey):
+                        logger.debug('skipping survey=%s due to blacklist rules.' %(str(survey)))
                         continue
                     for extension in [{'path': '/details',
                                        'api_args': {'include': 'date_modified'}},
