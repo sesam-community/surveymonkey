@@ -27,7 +27,7 @@ Sesam connector for surveymonkey API
 | THRESHOLD_FOR_REQUEST_REJECTION_DAY | ratio of "remaining/day-limit". Once reached requests will be rejected |N| 0.1|
 | THRESHOLD_FOR_DELAYED_RESPONSE_MINUTE | ratio of "remaining/minute-limit". Once reached requests will be delayed by remaining/time_to_reset |N| 0.3|
 | THRESHOLD_FOR_DELAYED_RESPONSE_DAY | ratio of "remaining/day-limit". Once reached requests will be delayed by remaining/time_to_reset |N| 0.3|
-
+| BLACKLIST_PATTERN_SPEC | dict where keys are a set of the [Survey List Resources fields](https://developer.surveymonkey.com/api/v3/#surveys) and values are regex patterns, which blocks data retrieval for the matched surveys on endpoint 'minimalreportingdata'. e.g. '{"title":"^test"}' |N| N/A|
 
 
 #### query parameters
