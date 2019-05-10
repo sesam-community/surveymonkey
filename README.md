@@ -14,6 +14,9 @@ Sesam connector for surveymonkey API
 
 * **minimalreportingdata** : a special url path _minimalreportingdata_ will return the minimal reporting data in one request. In the response there will be survey details, collectors, and response data. It supports
 
+### Notes
+
+* Access logs are available only if loglevel is at least 'INFO'
 
 #### Environment Variables
 

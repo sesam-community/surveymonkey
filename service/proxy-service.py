@@ -5,14 +5,14 @@ import os
 import sys
 import json
 import re
-import logger as l
+import logger as log
 from datetime import datetime, timedelta
 from time import sleep
 import cherrypy
 
 app = Flask(__name__)
 
-logger = l.Logger('surveymonkey', os.environ.get('LOGLEVEL', 'INFO'))
+logger = log.init_logger('surveymonkey', os.environ.get('LOGLEVEL', 'INFO'))
 
 BASE_URL = os.environ.get('SURVEYMONKEY_URL')
 ACCESS_TOKEN_DICT = json.loads(os.environ.get(
@@ -35,11 +35,12 @@ RATE_LIMIT_THRESHOLDS = [{
     'Day': float(os.environ.get('THRESHOLD_FOR_DELAYED_RESPONSE_DAY', '0.3'))
 }]
 
-BLACKLIST_PATTERN_SPEC = json.loads(os.environ.get('BLACKLIST_PATTERN_SPEC','{}'))
+BLACKLIST_PATTERN_SPEC = json.loads(
+    os.environ.get('BLACKLIST_PATTERN_SPEC', '{}'))
 
 logger.info(
     'started up with LOG_LEVEL=%s, BASE_URL=%s, PER_PAGE=%d, RATE_LIMIT_THRESHOLDS=%s, BLACKLIST_PATTERN_SPEC=%s, ACCOUNTS=%s' %
-    (l.getLevel(logger), BASE_URL, PER_PAGE, RATE_LIMIT_THRESHOLDS, BLACKLIST_PATTERN_SPEC, str(ACCESS_TOKEN_DICT.keys())))
+    (log.get_level_name(logger.level), BASE_URL, PER_PAGE, RATE_LIMIT_THRESHOLDS, BLACKLIST_PATTERN_SPEC, str(ACCESS_TOKEN_DICT.keys())))
 
 API_ENDPOINTS_TO_READ_FROM_DATA_FIELD = [
     'minimalreportingdata',
@@ -159,11 +160,13 @@ def generate_entities(session, url, service_args, api_args):
         if do_page:
             api_args['page'] = api_response_json.get('page') + 1
 
+
 def is_blacklisted(dict):
     is_blacklisted = False
     for field, pattern in BLACKLIST_PATTERN_SPEC.items():
         is_blacklisted = re.search(pattern, dict.get(field, ''))
     return is_blacklisted
+
 
 def fetch_data(session, path, service_args, api_args):
     global g_reject_requests_policy_expires_at
@@ -181,7 +184,8 @@ def fetch_data(session, path, service_args, api_args):
                     session, BASE_URL + 'surveys', service_args, api_args={})
                 for survey in surveys:
                     if is_blacklisted(survey):
-                        logger.debug('skipping survey=%s due to blacklist rules.' %(str(survey)))
+                        logger.debug(
+                            'skipping survey=%s due to blacklist rules.' % (str(survey)))
                         continue
                     for extension in [{'path': '/details',
                                        'api_args': {'include': 'date_modified'}},
@@ -292,6 +296,7 @@ if __name__ == '__main__':
         app.run(debug=True, host='0.0.0.0', port=int(
             os.environ.get('PORT', 5000)))
     else:
+        app = log.add_access_logger(app, logger)
         cherrypy.tree.graft(app, '/')
 
         # Set the configuration of the web server to production mode
