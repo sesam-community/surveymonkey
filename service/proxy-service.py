@@ -137,11 +137,13 @@ def sesamify(entity, service_args):
 
 
 def generate_entities(session, url, service_args, api_args):
-    def do_read_from_data_field(url):
-        api_endpoint = re.sub(r'/\d+', r'/{id}', url.replace(BASE_URL, ''))
-        return api_endpoint in API_ENDPOINTS_TO_READ_FROM_DATA_FIELD
     do_page = True
     is_first_yield = True
+    do_read_from_data_field = re.sub(r'/\d+', r'/{id}',
+            url.replace(BASE_URL, '')) in API_ENDPOINTS_TO_READ_FROM_DATA_FIELD
+    if do_read_from_data_field:
+        api_args.setdefault('per_page', PER_PAGE)
+
     while do_page and not g_reject_requests_policy_expires_at:
         logger.debug('issuing a call to url=%s with args=%s' % (url, api_args))
         api_response = session.get(url, params=api_args)
@@ -150,7 +152,7 @@ def generate_entities(session, url, service_args, api_args):
         if api_response.status_code != 200:
             raise Exception(api_response_json.get('error'))
 
-        data = api_response_json.get('data') if do_read_from_data_field(url) else [
+        data = api_response_json.get('data') if do_read_from_data_field else [
             api_response.json()]
         for entity in data:
             yield entity
@@ -164,7 +166,9 @@ def generate_entities(session, url, service_args, api_args):
 def is_blacklisted(dict):
     is_blacklisted = False
     for field, pattern in BLACKLIST_PATTERN_SPEC.items():
-        is_blacklisted = re.search(pattern, dict.get(field, ''))
+        is_blacklisted = dict.get(field) and re.search(pattern, dict.get(field))
+        if is_blacklisted:
+            break
     return is_blacklisted
 
 
