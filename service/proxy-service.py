@@ -8,11 +8,11 @@ import re
 import logger as log
 from datetime import datetime, timedelta
 from time import sleep
-import cherrypy
+from sesamutils import sesam_logger
 
 app = Flask(__name__)
 
-logger = log.init_logger('surveymonkey', os.environ.get('LOGLEVEL', 'INFO'))
+logger = sesam_logger('surveymonkey', app=app)
 
 BASE_URL = os.environ.get('SURVEYMONKEY_URL')
 ACCESS_TOKEN_DICT = json.loads(os.environ.get(
@@ -304,14 +304,5 @@ if __name__ == '__main__':
         cherrypy.tree.graft(app, '/')
 
         # Set the configuration of the web server to production mode
-        cherrypy.config.update({
-            'environment': 'production',
-            'engine.autoreload_on': False,
-            'log.screen': True,
-            'server.socket_port': int(os.environ.get('PORT', 5000)),
-            'server.socket_host': '0.0.0.0'
-        })
-
-        # Start the CherryPy WSGI web server
-        cherrypy.engine.start()
-        cherrypy.engine.block()
+        from sesamutils.flask import serve
+        serve(app)
