@@ -139,8 +139,8 @@ def sesamify(entity, service_args):
 def generate_entities(session, url, service_args, api_args):
     do_page = True
     is_first_yield = True
-    do_read_from_data_field = re.sub(r'/\d+', r'/{id}',
-            url.replace(BASE_URL, '')) in API_ENDPOINTS_TO_READ_FROM_DATA_FIELD
+    do_read_from_data_field = re.sub(r'/$','',re.sub(r'/\d+', r'/{id}',
+              url.replace(BASE_URL, ''))) in API_ENDPOINTS_TO_READ_FROM_DATA_FIELD
     if do_read_from_data_field:
         api_args.setdefault('per_page', PER_PAGE)
 
