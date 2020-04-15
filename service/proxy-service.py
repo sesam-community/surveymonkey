@@ -5,7 +5,6 @@ import os
 import sys
 import json
 import re
-import logger as log
 from datetime import datetime, timedelta
 from time import sleep
 from sesamutils import sesam_logger
@@ -40,7 +39,7 @@ BLACKLIST_PATTERN_SPEC = json.loads(
 
 logger.info(
     'started up with LOG_LEVEL=%s, BASE_URL=%s, PER_PAGE=%d, RATE_LIMIT_THRESHOLDS=%s, BLACKLIST_PATTERN_SPEC=%s, ACCOUNTS=%s' %
-    (log.get_level_name(logger.level), BASE_URL, PER_PAGE, RATE_LIMIT_THRESHOLDS, BLACKLIST_PATTERN_SPEC, str(ACCESS_TOKEN_DICT.keys())))
+    (os.getenv('LOG_LEVEL','INFO'), BASE_URL, PER_PAGE, RATE_LIMIT_THRESHOLDS, BLACKLIST_PATTERN_SPEC, str(ACCESS_TOKEN_DICT.keys())))
 
 API_ENDPOINTS_TO_READ_FROM_DATA_FIELD = [
     'minimalreportingdata',
@@ -300,9 +299,6 @@ if __name__ == '__main__':
         app.run(debug=True, host='0.0.0.0', port=int(
             os.environ.get('PORT', 5000)))
     else:
-        app = log.add_access_logger(app, logger)
-        cherrypy.tree.graft(app, '/')
-
         # Set the configuration of the web server to production mode
         from sesamutils.flask import serve
         serve(app)

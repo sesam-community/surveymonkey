@@ -24,7 +24,7 @@ Sesam connector for surveymonkey API
 |:-----------|:-----------------|---------------:|----------------:|
 | SURVEYMONKEY_ACCESS_TOKEN_DICT / SURVEYMONKEY_ACCESS_TOKEN | dict of access tokens in '<any_key_preferably_account_name>':'<access_token>' format / a string of single account token, respectively. |Y| N/A|
 | SURVEYMONKEY_URL | surveymonkey base url up to API call path |Y| N/A|
-| LOGLEVEL | loglevel for the service |N| Info|
+| LOG_LEVEL | log level for the service |N| Info|
 | PER_PAGE | page size for the paged API calls |N| 1000|
 | THRESHOLD_FOR_REQUEST_REJECTION_MINUTE | ratio of "remaining/minute-limit". Once reached requests will be rejected |N| 0.1|
 | THRESHOLD_FOR_REQUEST_REJECTION_DAY | ratio of "remaining/day-limit". Once reached requests will be rejected |N| 0.1|

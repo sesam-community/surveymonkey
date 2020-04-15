@@ -1,4 +1,3 @@
 Flask==1.1.0
 requests==2.21.0
-paste==3.0.8
 sesamutils==0.1.10
