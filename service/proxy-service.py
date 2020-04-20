@@ -116,7 +116,7 @@ def rate_limit_check_post_apicall(api_response):
         None
 
 
-def sesamify(entity, service_args):
+def sesamify(entity, service_args, fields_for_integrity=[]):
     def remove_tz_offset(value):
         return value[:-6] if re.search('\+\d\d:\d\d$', value) else value
     if service_args.get('_id_src'):
@@ -132,6 +132,7 @@ def sesamify(entity, service_args):
             entity['_updated'] = remove_tz_offset(
                 str(entity.get('date_modified')))
             service_args['latest_date_modified'] = entity['_updated']
+    entity.update(fields_for_integrity)
     return entity
 
 
@@ -193,7 +194,8 @@ def fetch_data(session, path, service_args, api_args):
                     for extension in [{'path': '/details',
                                        'api_args': {'include': 'date_modified'}},
                                       {'path': '/collectors',
-                                       'api_args': {'include': 'status,date_modified'}},
+                                       'api_args': {'include': 'status,date_modified'},
+                                       'fields2update':{'survey_id':survey.get('id', None)}},
                                       {'path': '/responses/bulk', 'api_args': api_args}]:
                         extension_entities = generate_entities(
                             session, survey['href'] + extension['path'], service_args, extension['api_args'])
@@ -202,7 +204,7 @@ def fetch_data(session, path, service_args, api_args):
                                 is_first_yield = False
                             else:
                                 yield ','
-                            yield json.dumps(sesamify(entity, service_args))
+                            yield json.dumps(sesamify(entity, service_args, extension.get('fields2update',{})))
 
             else:
                 entity_list = generate_entities(
