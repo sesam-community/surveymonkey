@@ -279,13 +279,16 @@ def get(path):
 
 @app.route('/transform/<path:path>', methods=['POST'])
 def transform(path):
-    incoming_json = request.get_json()[0]
+    incoming_json = request.get_json()
     generated_path = path
-    logger.debug('%s' % (incoming_json))
     try:
-        for replacement in re.findall('{{.*?}}', path):
-            generated_path = generated_path.replace(
-                replacement, str(incoming_json[replacement[2:-2]]))
+        if isinstance(incoming_json, list):
+            incoming_json = incoming_json[0]
+        if incoming_json:
+            logger.debug('%s' % (incoming_json))
+            for replacement in re.findall('{{.*?}}', path):
+                generated_path = generated_path.replace(
+                    replacement, str(incoming_json[replacement[2:-2]]))
         return get_data(generated_path, request.args.to_dict(True))
     except Exception as err:
         logger.exception(err)
