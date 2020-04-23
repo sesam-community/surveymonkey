@@ -57,7 +57,7 @@ API_ENDPOINTS_TO_READ_FROM_DATA_FIELD = [
 ]
 SERVICE_PARAMETERS = [
     '_id_src', '_updated_src',
-    '_do_stream', 'since', 'limit']
+    '_do_stream', 'since', 'limit', '_account_keys']
 RESPONSE_CONTENT_TYPE = 'application/json; charset=utf-8'
 
 g_reject_requests_policy_expires_at = None
@@ -178,9 +178,9 @@ def fetch_data(session, path, service_args, api_args):
     url = None
     try:
         yield '['
-        for access_token in ACCESS_TOKEN_DICT.values():
+        for account_key in service_args.get('_account_keys'):
             session.headers.update({
-                'Authorization': 'Bearer %s' % access_token,
+                'Authorization': 'Bearer %s' % ACCESS_TOKEN_DICT[account_key],
                 'Content-Type': 'application/json'
             })
             if path == 'minimalreportingdata':
@@ -218,7 +218,6 @@ def fetch_data(session, path, service_args, api_args):
     except StopIteration:
         None
     except Exception as err:
-        logger.exception(err)
         yield str(err)
         if not service_args.get('do_stream'):
             raise
@@ -239,6 +238,24 @@ def get_args(path, args):
     }
     if 'since' in args:
         args['start_modified_at'] = args.get('since')
+
+    account_keys = args.get('_account_keys').split(',') if args.get('_account_keys') else None
+    if not account_keys:
+        if len(ACCESS_TOKEN_DICT.items()) == 1:
+            account_keys = ACCESS_TOKEN_DICT.keys()
+        else:
+            account_keys = None
+    else:
+        if not all(account_key in ACCESS_TOKEN_DICT for account_key in account_keys):
+            account_keys = None
+    if not account_keys:
+        raise Exception({
+            'error': True,
+            'message': 'cannot select surveymonkey account properly',
+            'http_status_code': 400
+        })
+    args['_account_keys'] = account_keys
+
     for param in SERVICE_PARAMETERS:
         if param in args:
             service_args[param] = args[param]
@@ -263,6 +280,7 @@ def get_data(path, request_args):
             return Response(
                 response=response_data, content_type=RESPONSE_CONTENT_TYPE)
     except Exception as err:
+        logger.exception(err)
         err_arg = err.args[0]
         status_code = err_arg.get('http_status_code', 500) if type(
             err_arg) == dict else 500
