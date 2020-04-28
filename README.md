@@ -24,7 +24,7 @@ Sesam connector for surveymonkey API
 |:-----------|:-----------------|---------------:|----------------:|
 | SURVEYMONKEY_ACCESS_TOKEN_DICT / SURVEYMONKEY_ACCESS_TOKEN | dict of access tokens in '<any_key_preferably_account_name>':'<access_token>' format / a string of single account token, respectively. |Y| N/A|
 | SURVEYMONKEY_URL | surveymonkey base url up to API call path |Y| N/A|
-| LOGLEVEL | loglevel for the service |N| Info|
+| LOG_LEVEL | log level for the service |N| Info|
 | PER_PAGE | page size for the paged API calls |N| 1000|
 | THRESHOLD_FOR_REQUEST_REJECTION_MINUTE | ratio of "remaining/minute-limit". Once reached requests will be rejected |N| 0.1|
 | THRESHOLD_FOR_REQUEST_REJECTION_DAY | ratio of "remaining/day-limit". Once reached requests will be rejected |N| 0.1|
@@ -43,8 +43,10 @@ Additionaly, following parameters are defined by this microservice:
 | _id_src | source field for _id |N| N/A|
 | _updated_src | source field for _updated |N| N/A|
 | _do_stream | flag to enable/disable streaming. Set to _1_ for enabling, any other value otherwise|N| 0|
+| _account_keys | used to specify account(s) when the service is configured for multiple account. comma separated values. |N| n/a|
 | since | sesam pull protocol's since value. Gets renamed to _start_modified_at_ |N| N/A|
 | limit | accepted but ignored. use _page_size_ and _page_ instead |N| N/A|
+
 
 
 ### Examples
@@ -60,11 +62,18 @@ Additionaly, following parameters are defined by this microservice:
             "SURVEYMONKEY_ACCESS_TOKEN_DICT": "$SECRET(surveymonkey_access_token_dict)",
             "SURVEYMONKEY_URL": "$ENV(surveymonkey_baseurl)"
         },
-        "image": "sesamcommunity/surveymonkey:v1.0",
+        "image": "sesamcommunity/surveymonkey:<version comes here>",
         "port": 5000
     },
     "read_timeout": 7200
 }
+```
+where SURVEYMONKEY_ACCESS_TOKEN_DICT is a dict where keys are accountkeys(any string of your choice) and  values are access tokens. For example:
+```
+  {
+    "my_surveymonkey_account1": "token for my_surveymonkey_account1",
+    "my_surveymonkey_account2": "token for my_surveymonkey_account2"
+  }
 ```
 ##### pipe source examples
 ```
@@ -87,7 +96,7 @@ Additionaly, following parameters are defined by this microservice:
   "is_chronological": false,
   "is_since_comparable": true,
   "supports_since": true,
-  "url": "surveys/1/responses/bulk?since=2019-01-01T00:00:00&sort_by=date_modified"
+  "url": "surveys/1/responses/bulk?_account_keys=my_surveymonkey_account1&since=2019-01-01T00:00:00&sort_by=date_modified"
 }
 ...
 ```

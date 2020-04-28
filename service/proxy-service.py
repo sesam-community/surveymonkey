@@ -5,14 +5,13 @@ import os
 import sys
 import json
 import re
-import logger as log
 from datetime import datetime, timedelta
 from time import sleep
-import cherrypy
+from sesamutils import sesam_logger
 
 app = Flask(__name__)
 
-logger = log.init_logger('surveymonkey', os.environ.get('LOGLEVEL', 'INFO'))
+logger = sesam_logger('surveymonkey', app=app)
 
 BASE_URL = os.environ.get('SURVEYMONKEY_URL')
 ACCESS_TOKEN_DICT = json.loads(os.environ.get(
@@ -40,7 +39,7 @@ BLACKLIST_PATTERN_SPEC = json.loads(
 
 logger.info(
     'started up with LOG_LEVEL=%s, BASE_URL=%s, PER_PAGE=%d, RATE_LIMIT_THRESHOLDS=%s, BLACKLIST_PATTERN_SPEC=%s, ACCOUNTS=%s' %
-    (log.get_level_name(logger.level), BASE_URL, PER_PAGE, RATE_LIMIT_THRESHOLDS, BLACKLIST_PATTERN_SPEC, str(ACCESS_TOKEN_DICT.keys())))
+    (os.getenv('LOG_LEVEL','INFO'), BASE_URL, PER_PAGE, RATE_LIMIT_THRESHOLDS, BLACKLIST_PATTERN_SPEC, str(ACCESS_TOKEN_DICT.keys())))
 
 API_ENDPOINTS_TO_READ_FROM_DATA_FIELD = [
     'minimalreportingdata',
@@ -58,7 +57,7 @@ API_ENDPOINTS_TO_READ_FROM_DATA_FIELD = [
 ]
 SERVICE_PARAMETERS = [
     '_id_src', '_updated_src',
-    '_do_stream', 'since', 'limit']
+    '_do_stream', 'since', 'limit', '_account_keys']
 RESPONSE_CONTENT_TYPE = 'application/json; charset=utf-8'
 
 g_reject_requests_policy_expires_at = None
@@ -117,7 +116,7 @@ def rate_limit_check_post_apicall(api_response):
         None
 
 
-def sesamify(entity, service_args):
+def sesamify(entity, service_args, fields_for_integrity=[]):
     def remove_tz_offset(value):
         return value[:-6] if re.search('\+\d\d:\d\d$', value) else value
     if service_args.get('_id_src'):
@@ -133,14 +132,15 @@ def sesamify(entity, service_args):
             entity['_updated'] = remove_tz_offset(
                 str(entity.get('date_modified')))
             service_args['latest_date_modified'] = entity['_updated']
+    entity.update(fields_for_integrity)
     return entity
 
 
 def generate_entities(session, url, service_args, api_args):
     do_page = True
     is_first_yield = True
-    do_read_from_data_field = re.sub(r'/\d+', r'/{id}',
-            url.replace(BASE_URL, '')) in API_ENDPOINTS_TO_READ_FROM_DATA_FIELD
+    do_read_from_data_field = re.sub(r'/$','',re.sub(r'/\d+', r'/{id}',
+              url.replace(BASE_URL, ''))) in API_ENDPOINTS_TO_READ_FROM_DATA_FIELD
     if do_read_from_data_field:
         api_args.setdefault('per_page', PER_PAGE)
 
@@ -178,9 +178,9 @@ def fetch_data(session, path, service_args, api_args):
     url = None
     try:
         yield '['
-        for access_token in ACCESS_TOKEN_DICT.values():
+        for account_key in service_args.get('_account_keys'):
             session.headers.update({
-                'Authorization': 'Bearer %s' % access_token,
+                'Authorization': 'Bearer %s' % ACCESS_TOKEN_DICT[account_key],
                 'Content-Type': 'application/json'
             })
             if path == 'minimalreportingdata':
@@ -194,7 +194,8 @@ def fetch_data(session, path, service_args, api_args):
                     for extension in [{'path': '/details',
                                        'api_args': {'include': 'date_modified'}},
                                       {'path': '/collectors',
-                                       'api_args': {'include': 'status,date_modified'}},
+                                       'api_args': {'include': 'status,date_modified'},
+                                       'fields2update':{'survey_id':survey.get('id', None)}},
                                       {'path': '/responses/bulk', 'api_args': api_args}]:
                         extension_entities = generate_entities(
                             session, survey['href'] + extension['path'], service_args, extension['api_args'])
@@ -203,7 +204,7 @@ def fetch_data(session, path, service_args, api_args):
                                 is_first_yield = False
                             else:
                                 yield ','
-                            yield json.dumps(sesamify(entity, service_args))
+                            yield json.dumps(sesamify(entity, service_args, extension.get('fields2update',{})))
 
             else:
                 entity_list = generate_entities(
@@ -217,7 +218,6 @@ def fetch_data(session, path, service_args, api_args):
     except StopIteration:
         None
     except Exception as err:
-        logger.exception(err)
         yield str(err)
         if not service_args.get('do_stream'):
             raise
@@ -238,6 +238,24 @@ def get_args(path, args):
     }
     if 'since' in args:
         args['start_modified_at'] = args.get('since')
+
+    account_keys = args.get('_account_keys').split(',') if args.get('_account_keys') else None
+    if not account_keys:
+        if len(ACCESS_TOKEN_DICT.items()) == 1:
+            account_keys = ACCESS_TOKEN_DICT.keys()
+        else:
+            account_keys = None
+    else:
+        if not all(account_key in ACCESS_TOKEN_DICT for account_key in account_keys):
+            account_keys = None
+    if not account_keys:
+        raise Exception({
+            'error': True,
+            'message': 'cannot select surveymonkey account properly',
+            'http_status_code': 400
+        })
+    args['_account_keys'] = account_keys
+
     for param in SERVICE_PARAMETERS:
         if param in args:
             service_args[param] = args[param]
@@ -262,6 +280,7 @@ def get_data(path, request_args):
             return Response(
                 response=response_data, content_type=RESPONSE_CONTENT_TYPE)
     except Exception as err:
+        logger.exception(err)
         err_arg = err.args[0]
         status_code = err_arg.get('http_status_code', 500) if type(
             err_arg) == dict else 500
@@ -278,13 +297,16 @@ def get(path):
 
 @app.route('/transform/<path:path>', methods=['POST'])
 def transform(path):
-    incoming_json = request.get_json()[0]
+    incoming_json = request.get_json()
     generated_path = path
-    logger.debug('%s' % (incoming_json))
     try:
-        for replacement in re.findall('{{.*?}}', path):
-            generated_path = generated_path.replace(
-                replacement, str(incoming_json[replacement[2:-2]]))
+        if isinstance(incoming_json, list):
+            incoming_json = incoming_json[0]
+        if incoming_json:
+            logger.debug('%s' % (incoming_json))
+            for replacement in re.findall('{{.*?}}', path):
+                generated_path = generated_path.replace(
+                    replacement, str(incoming_json[replacement[2:-2]]))
         return get_data(generated_path, request.args.to_dict(True))
     except Exception as err:
         logger.exception(err)
@@ -300,18 +322,6 @@ if __name__ == '__main__':
         app.run(debug=True, host='0.0.0.0', port=int(
             os.environ.get('PORT', 5000)))
     else:
-        app = log.add_access_logger(app, logger)
-        cherrypy.tree.graft(app, '/')
-
         # Set the configuration of the web server to production mode
-        cherrypy.config.update({
-            'environment': 'production',
-            'engine.autoreload_on': False,
-            'log.screen': True,
-            'server.socket_port': int(os.environ.get('PORT', 5000)),
-            'server.socket_host': '0.0.0.0'
-        })
-
-        # Start the CherryPy WSGI web server
-        cherrypy.engine.start()
-        cherrypy.engine.block()
+        from sesamutils.flask import serve
+        serve(app)
